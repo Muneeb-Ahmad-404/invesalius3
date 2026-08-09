@@ -289,7 +289,10 @@ class TextPanel(wx.Panel):
         return cancelled[0]
 
     def OnActivate(self, evt):
-        item = evt.GetItem()
+        if not evt:
+            item = self.__tree.GetSelection()
+        else:
+            item = evt.GetItem()
 
         self._load_values()
 
@@ -348,6 +351,15 @@ class TextPanel(wx.Panel):
             self._destroy_progress()
             wx.MessageBox(str(e), _("Error"), wx.OK | wx.ICON_ERROR)
             return
+
+    def ImportSelected(self):
+        """Import the currently selected tree item."""
+        if self.__tree.GetSelection().IsOk():
+            self.OnActivate(None)
+        else:
+            wx.MessageBox(
+                _("Please select a series to import."), _("Info"), wx.OK | wx.ICON_INFORMATION
+            )
 
     def _on_download_done(self, dest, result=None, error=None):
         self._destroy_progress()

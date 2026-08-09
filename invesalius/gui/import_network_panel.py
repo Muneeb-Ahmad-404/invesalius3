@@ -87,10 +87,10 @@ class InnerPanel(wx.Panel):
 
         panel = wx.Panel(self)
         self.btn_cancel = wx.Button(panel, wx.ID_CANCEL)
-        self.btn_ok = wx.Button(panel, wx.ID_OK, _("Import"))
+        self.btn_import = wx.Button(panel, wx.ID_OK, _("Import"))
 
         btnsizer = wx.StdDialogButtonSizer()
-        btnsizer.AddButton(self.btn_ok)
+        btnsizer.AddButton(self.btn_import)
         btnsizer.AddButton(self.btn_cancel)
         btnsizer.Realize()
 
@@ -135,7 +135,7 @@ class InnerPanel(wx.Panel):
         self.Bind(EVT_SELECT_SERIE, self.OnSelectSerie)
         self.Bind(EVT_SELECT_SLICE, self.OnSelectSlice)
         self.Bind(EVT_SELECT_PATIENT, self.OnSelectPatient)
-        self.btn_ok.Bind(wx.EVT_BUTTON, self.OnClickOk)
+        self.btn_import.Bind(wx.EVT_BUTTON, self.OnClickImport)
         self.btn_cancel.Bind(wx.EVT_BUTTON, self.OnClickCancel)
         self.text_panel.Bind(EVT_SELECT_SERIE_TEXT, self.OnDblClickTextPanel)
 
@@ -163,11 +163,8 @@ class InnerPanel(wx.Panel):
         group = evt.GetItemData()
         self.LoadDicom(group)
 
-    def OnClickOk(self, evt):
-        group = self.text_panel.GetSelection()
-
-        if group:
-            self.LoadDicom(group)
+    def OnClickImport(self, evt):
+        self.text_panel.ImportSelected()
 
     def OnClickCancel(self, evt):
         # Publisher.sendMessage("Cancel DICOM load")
