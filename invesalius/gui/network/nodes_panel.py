@@ -21,7 +21,7 @@ class NodesPanel(wx.Panel):
         self.__selected_index = None
         self.__selected_node = None
         self.__progress_dialog = None
-        
+
         self.__session = ses.Session()
 
         # Create the main vertical box sizer
@@ -100,7 +100,7 @@ class NodesPanel(wx.Panel):
     def _pulse_progress(self, search_progress):
         if not self.__progress_dialog:
             return
-        
+
         search_progress = (search_progress + 2) % 100
         self.__progress_dialog.Update(
             search_progress,
@@ -111,17 +111,23 @@ class NodesPanel(wx.Panel):
         self.__btn_find.Enable()
 
         if error:
-            wx.MessageDialog(self, (f"Error: {error}"), "Info", wx.OK | wx.ICON_INFORMATION).ShowModal()
+            wx.MessageDialog(
+                self, (f"Error: {error}"), "Info", wx.OK | wx.ICON_INFORMATION
+            ).ShowModal()
             return
 
         if patients:
             if self.__progress_dialog:
                 self.__progress_dialog.Destroy()
 
-            wx.MessageDialog(self, (f"Found {len(patients)} patients"), "Info", wx.OK | wx.ICON_INFORMATION).ShowModal()
+            wx.MessageDialog(
+                self, (f"Found {len(patients)} patients"), "Info", wx.OK | wx.ICON_INFORMATION
+            ).ShowModal()
             Publisher.sendMessage("Populate tree", patients=patients)
         else:
-            wx.MessageDialog(self, "No patients found", "Info", wx.OK | wx.ICON_INFORMATION).ShowModal()
+            wx.MessageDialog(
+                self, "No patients found", "Info", wx.OK | wx.ICON_INFORMATION
+            ).ShowModal()
             Publisher.sendMessage("Populate tree", patients=patients)
 
     def _add_node(self, node):
