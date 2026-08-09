@@ -20,7 +20,8 @@ class NodesPanel(wx.Panel):
         self.__nodes = []
         self.__selected_index = None
         self.__selected_node = None
-
+        self.__progress_dialog = None
+        
         self.__session = ses.Session()
 
         # Create the main vertical box sizer
@@ -29,7 +30,6 @@ class NodesPanel(wx.Panel):
         self.__find_input = wx.TextCtrl(self, size=(225, -1))
         self.__find_input.SetHint("Enter patient name")
         self.__btn_find = wx.Button(self, label="Search")
-        self.__find_status = wx.StaticText(self, label="")
 
         self.__check_button = wx.Button(self, label="Check status")
 
@@ -74,8 +74,6 @@ class NodesPanel(wx.Panel):
     def _on_button_find(self, evt):
         """Find button event."""
 
-        self.__find_status.SetForegroundColour(wx.WHITE)
-
         if self.__selected_node is None:
             wx.MessageBox(_("Please, select a node."), _("Error"), wx.OK | wx.ICON_ERROR)
             return
@@ -87,26 +85,43 @@ class NodesPanel(wx.Panel):
         )
         dn.SetSearchWord(self.__find_input.GetValue())
 
-        self.__find_status.SetLabel("Searching...")
-        self.__btn_find.Disable()
+        self.__progress_dialog = wx.ProgressDialog(
+            "Searching",
+            "Searching for patients...",
+            maximum=100,
+            parent=self,
+            style=wx.PD_ELAPSED_TIME | wx.PD_APP_MODAL,
+        )
 
+        self.__btn_find.Disable()
+        self._pulse_progress(0)
         dn.RunCFind(self._on_search_done)
+
+    def _pulse_progress(self, search_progress):
+        if not self.__progress_dialog:
+            return
+        
+        search_progress = (search_progress + 2) % 100
+        self.__progress_dialog.Update(
+            search_progress,
+        )
+        wx.CallLater(100, self._pulse_progress, search_progress)
 
     def _on_search_done(self, patients, error):
         self.__btn_find.Enable()
 
         if error:
-            self.__find_status.SetLabel(f"Error: {error}")
-            self.__find_status.SetForegroundColour(wx.RED)
+            wx.MessageDialog(self, (f"Error: {error}"), "Info", wx.OK | wx.ICON_INFORMATION).ShowModal()
             return
 
         if patients:
-            self.__find_status.SetLabel(f"Found {len(patients)} patients")
-            self.__find_status.SetForegroundColour(wx.GREEN)
+            if self.__progress_dialog:
+                self.__progress_dialog.Destroy()
+
+            wx.MessageDialog(self, (f"Found {len(patients)} patients"), "Info", wx.OK | wx.ICON_INFORMATION).ShowModal()
             Publisher.sendMessage("Populate tree", patients=patients)
         else:
-            self.__find_status.SetLabel("No patients found")
-            self.__find_status.SetForegroundColour(wx.BLUE)
+            wx.MessageDialog(self, "No patients found", "Info", wx.OK | wx.ICON_INFORMATION).ShowModal()
             Publisher.sendMessage("Populate tree", patients=patients)
 
     def _add_node(self, node):
@@ -153,7 +168,6 @@ class NodesPanel(wx.Panel):
 
         find_sizer.Add(self.__find_input, 0, wx.ALL, 5)
         find_sizer.Add(self.__btn_find, 0, wx.ALL, 5)
-        find_sizer.Add(self.__find_status, 0, wx.ALL, 5)
 
         return find_sizer
 
