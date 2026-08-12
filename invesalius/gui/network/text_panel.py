@@ -354,7 +354,10 @@ class TextPanel(wx.Panel):
 
     def ImportSelected(self):
         """Import the currently selected tree item."""
-        if self.__tree.GetSelection().IsOk():
+
+        selection = self.GetSelection()
+
+        if selection:
             self.OnActivate(None)
         else:
             wx.MessageBox(
