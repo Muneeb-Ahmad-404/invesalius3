@@ -110,6 +110,9 @@ class NodesPanel(wx.Panel):
     def _on_search_done(self, patients, error):
         self.__btn_find.Enable()
 
+        if self.__progress_dialog:
+            self.__progress_dialog.Destroy()
+
         if error:
             wx.MessageDialog(
                 self, (f"Error: {error}"), "Info", wx.OK | wx.ICON_INFORMATION
@@ -117,9 +120,6 @@ class NodesPanel(wx.Panel):
             return
 
         if patients:
-            if self.__progress_dialog:
-                self.__progress_dialog.Destroy()
-
             wx.MessageDialog(
                 self, (f"Found {len(patients)} patients"), "Info", wx.OK | wx.ICON_INFORMATION
             ).ShowModal()
@@ -128,7 +128,6 @@ class NodesPanel(wx.Panel):
             wx.MessageDialog(
                 self, "No patients found", "Info", wx.OK | wx.ICON_INFORMATION
             ).ShowModal()
-            Publisher.sendMessage("Populate tree", patients=patients)
 
     def _add_node(self, node):
         """Add a node to the nodes list."""
