@@ -272,20 +272,24 @@ class TextPanel(wx.Panel):
             return True
 
         percentage = int((completed / total) * 100) if total > 0 else 0
+        percentage = min(percentage, 100)
 
         cancelled = [False]  # mutable
 
         def _update():
             if self.__progress_dialog:
-                keep_going, skip = self.__progress_dialog.Update(
-                    percentage, f"Downloading: {completed}/{total} images"
-                )
-                if not keep_going:
+                try:
+                    keep_going, skip = self.__progress_dialog.Update(
+                        percentage, f"Downloading: {completed}/{total} images"
+                    )
+                    if not keep_going:
+                        cancelled[0] = True
+                        self._destroy_progress()
+                except Exception as e:
                     cancelled[0] = True
                     self._destroy_progress()
 
         wx.CallAfter(_update)
-
         return cancelled[0]
 
     def OnActivate(self, evt):
