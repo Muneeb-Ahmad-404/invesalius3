@@ -336,10 +336,10 @@ class NodesPanel(wx.Panel):
         result = self.__add_new_dialog.ShowModal()
 
         if result == wx.ID_CANCEL:
-            self.__add_new_dialog.Destroy()
+            self.__add_new_dialog.Close()
             return result
 
-        self.__add_new_dialog.Destroy()
+        self.__add_new_dialog.Close()
 
         ipaddress = self.__ipaddress_input.GetValue()
         port = self.__port_input.GetValue()
