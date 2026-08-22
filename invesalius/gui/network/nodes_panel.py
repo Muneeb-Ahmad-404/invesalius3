@@ -300,15 +300,15 @@ class NodesPanel(wx.Panel):
         form_sizer = wx.BoxSizer(wx.VERTICAL)
 
         sizer1 = wx.BoxSizer(wx.VERTICAL)
-        sizer1.Add(wx.StaticText(add_new_dialog, label="IP Address"), 0, wx.ALL, 5)
+        sizer1.Add(wx.StaticText(add_new_dialog, label="IP Address *"), 0, wx.ALL, 5)
         sizer1.Add(self.__ipaddress_input, 0, wx.ALL, 5)
 
         sizer2 = wx.BoxSizer(wx.VERTICAL)
-        sizer2.Add(wx.StaticText(add_new_dialog, label="Port"), 0, wx.ALL, 5)
+        sizer2.Add(wx.StaticText(add_new_dialog, label="Port *"), 0, wx.ALL, 5)
         sizer2.Add(self.__port_input, 0, wx.ALL, 5)
 
         sizer3 = wx.BoxSizer(wx.VERTICAL)
-        sizer3.Add(wx.StaticText(add_new_dialog, label="AE Title"), 0, wx.ALL, 5)
+        sizer3.Add(wx.StaticText(add_new_dialog, label="AE Title *"), 0, wx.ALL, 5)
         sizer3.Add(self.__aetitle_input, 0, wx.ALL, 5)
 
         sizer4 = wx.BoxSizer(wx.VERTICAL)
@@ -345,6 +345,17 @@ class NodesPanel(wx.Panel):
         port = self.__port_input.GetValue()
         aetitle = self.__aetitle_input.GetValue()
         description = self.__description_input.GetValue()
+
+        if not (ipaddress and port and aetitle):
+            dialog = wx.MessageDialog(
+                self,
+                "Please fill in all fields (IP Address, Port, and AE Title).",
+                "Missing Fields",
+                wx.OK | wx.ICON_WARNING,
+            )
+            dialog.ShowModal()
+            dialog.Destroy()
+            return
 
         node = {
             "ipaddress": ipaddress,
