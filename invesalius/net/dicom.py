@@ -338,7 +338,6 @@ class DicomNet:
     def __RunCGet(self, data, dest, progress_callback):
         logger.info(f"Starting C-GET for patient: {data.get('patient', 'unknown')}")
         logger.debug(f"Destination: {dest}")
-
         handlers = [(evt.EVT_C_STORE, self._handle_store)]
         self._current_dest = dest
 
@@ -352,7 +351,7 @@ class DicomNet:
         ds.PatientID = data.get("patient", "")
         ds.StudyInstanceUID = data.get("study", "")
         ds.SeriesInstanceUID = data.get("series", "")
-        ds.QueryRetrieveLevel = data["type"]
+        ds.QueryRetrieveLevel = data["type"].upper()
 
         assoc = ae.associate(
             self.address, self.port, ext_neg=[role], evt_handlers=handlers, ae_title=self.aetitle
@@ -413,7 +412,7 @@ class DicomNet:
         ds.PatientID = data.get("patient", "")
         ds.StudyInstanceUID = data.get("study", "")
         ds.SeriesInstanceUID = data.get("series", "")
-        ds.QueryRetrieveLevel = data["type"]
+        ds.QueryRetrieveLevel = data["type"].upper()
 
         assoc = ae.associate(self.address, self.port, ae_title=self.aetitle)
 
@@ -487,11 +486,15 @@ class DicomNet:
             logger.error(f"Failed to clean up partial files: {e}")
 
     def _date_format(self, date):
+        if not date:
+            return ""
         date = date.split(".")[0] if "." in date else date
         date = datetime.strptime(date, "%Y%m%d").strftime("%d/%m/%Y")
         return date
 
     def _time_format(self, time):
+        if not time:
+            return ""
         time = time.split(".")[0] if "." in time else time
         time = datetime.strptime(time, "%H%M%S").strftime("%H:%M:%S")
         return time

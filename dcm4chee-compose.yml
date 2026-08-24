@@ -1,4 +1,3 @@
-version: "3"
 services:
   ldap:
     image: dcm4che/slapd-dcm4chee:2.6.5-31.0
@@ -37,6 +36,8 @@ services:
       - "2762:2762"
       - "2575:2575"
       - "12575:12575"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       POSTGRES_DB: pacsdb
       POSTGRES_USER: pacs
@@ -48,4 +49,4 @@ services:
       - db
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ./storage:/storage
+      - /storage:/storage
