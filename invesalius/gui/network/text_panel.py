@@ -26,7 +26,6 @@ class TextPanel(wx.Panel):
         self.__server_port = None
         self.__download_method = ""
         self.__store_path = None
-        self.__progress_dialog = None
 
         self.__session = ses.Session()
 
@@ -263,35 +262,6 @@ class TextPanel(wx.Panel):
             self.__tree.Expand(parent_id)
         evt.Skip()
 
-    def _update_progress(self, completed, total, fallback=""):
-        if fallback:
-            wx.MessageBox(fallback, "Info", wx.OK | wx.ICON_INFORMATION)
-            return
-
-        if not self.__progress_dialog:
-            return True
-
-        percentage = int((completed / total) * 100) if total > 0 else 0
-        percentage = min(percentage, 100)
-
-        cancelled = [False]  # mutable
-
-        def _update():
-            if self.__progress_dialog:
-                try:
-                    keep_going, skip = self.__progress_dialog.Update(
-                        percentage, f"Downloading: {completed}/{total} images"
-                    )
-                    if not keep_going:
-                        cancelled[0] = True
-                        self._destroy_progress()
-                except Exception as e:
-                    cancelled[0] = True
-                    self._destroy_progress()
-
-        wx.CallAfter(_update)
-        return cancelled[0]
-
     def OnActivate(self, evt):
         if not evt:
             item = self.__tree.GetSelection()
@@ -334,19 +304,10 @@ class TextPanel(wx.Panel):
         dn.SetStorePath(self.__store_path)
         dn.SetIPCall(self.__server_ip)
 
-        self.__progress_dialog = wx.ProgressDialog(
-            "Downloading DICOM Images",
-            f"Downloading {data['type']}...",
-            maximum=n_images,
-            parent=self,
-            style=wx.PD_CAN_ABORT | wx.PD_ELAPSED_TIME | wx.PD_APP_MODAL,
-        )
-
         try:
             dn.RunDownloader(
                 data,
                 str(dest),
-                self._update_progress,
                 self.__download_method,
                 self._on_download_done,
             )
@@ -369,8 +330,6 @@ class TextPanel(wx.Panel):
             )
 
     def _on_download_done(self, dest, result=None, error=None):
-        self._destroy_progress()
-
         if error == "CANCELLED":
             wx.MessageBox(
                 _("Download cancelled. Partial files have been removed."),
@@ -395,12 +354,6 @@ class TextPanel(wx.Panel):
         wx.MessageBox("Download complete!", "Success", wx.OK)
         Publisher.sendMessage("Hide import network panel")
         Publisher.sendMessage("Import directory", directory=str(dest), use_gui=False)
-
-    def _destroy_progress(self):
-        """Safely destroy progress dialog."""
-        if self.__progress_dialog:
-            wx.CallAfter(self.__progress_dialog.Destroy)
-            self.__progress_dialog = None
 
     def OnSize(self, evt):
         self.__tree.SetSize(self.GetSize())

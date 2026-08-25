@@ -1,5 +1,7 @@
 import logging
 import os
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
@@ -16,11 +18,17 @@ from pynetdicom import (
 )
 from pynetdicom.sop_class import (
     CTImageStorage,
+    DigitalXRayImageStorageForPresentation,
+    MRImageStorage,
     PatientRootQueryRetrieveInformationModelFind,
     PatientRootQueryRetrieveInformationModelGet,
     PatientRootQueryRetrieveInformationModelMove,
+    SecondaryCaptureImageStorage,
+    UltrasoundImageStorage,
     Verification,
 )
+
+from invesalius.net.dialog import SurfaceProgressWindow
 
 # debug_logger()
 
@@ -40,6 +48,7 @@ class DicomNet:
         self.search_word = ""
         self.search_type = "patient"
         self._executor = ThreadPoolExecutor(max_workers=os.cpu_count())
+        self.progress_window = None
 
     def __call__(self):
         return self
@@ -106,25 +115,26 @@ class DicomNet:
 
         self._executor.submit(_task)
 
-    def RunDownloader(self, data, dest: str, progress_callback, download_method, callback=None):
+    def RunDownloader(self, data, dest: str, download_method, callback=None):
+        self.progress_window = SurfaceProgressWindow()
+        wx.CallAfter(self.progress_window.Show)
+
         def _task():
             try:
                 if download_method == "CMOVE":
                     try:
-                        result = self.__RunCMove(data, dest, progress_callback)
+                        result = self.__RunCMove(data, dest)
                     except Exception as e:
                         if str(e) == "CANCELLED":
-                            msg = f"Operation cancelled"
-                            logger.warning(msg)
-                            wx.CallAfter(progress_callback, 0, 0, msg)
+                            logger.warning("Operation cancelled")
+                            if callback:
+                                wx.CallAfter(callback, dest, None, str(e))
                             return
-                        else:
-                            msg = f"C-MOVE failed: {e}. Falling back to C-GET..."
-                            logger.warning(msg)
-                            wx.CallAfter(progress_callback, 0, 0, msg)
-                            result = self.__RunCGet(data, dest, progress_callback)
+                        msg = f"C-MOVE failed: {e}. Falling back to C-GET..."
+                        logger.warning(msg)
+                        result = self.__RunCGet(data, dest)
                 else:
-                    result = self.__RunCGet(data, dest, progress_callback)
+                    result = self.__RunCGet(data, dest)
                 if callback:
                     wx.CallAfter(callback, dest, result, None)
             except Exception as e:
@@ -335,7 +345,7 @@ class DicomNet:
             assoc.release()
             logger.debug("C-FIND association released")
 
-    def __RunCGet(self, data, dest, progress_callback):
+    def __RunCGet(self, data, dest):
         logger.info(f"Starting C-GET for patient: {data.get('patient', 'unknown')}")
         logger.debug(f"Destination: {dest}")
         handlers = [(evt.EVT_C_STORE, self._handle_store)]
@@ -343,9 +353,19 @@ class DicomNet:
 
         ae = AE(ae_title=self.aetitle_call)
         ae.add_requested_context(PatientRootQueryRetrieveInformationModelGet)
-        ae.add_requested_context(CTImageStorage)
 
-        role = build_role(CTImageStorage, scp_role=True)
+        storage_contexts = [
+            CTImageStorage,
+            MRImageStorage,
+            SecondaryCaptureImageStorage,
+            DigitalXRayImageStorageForPresentation,
+            UltrasoundImageStorage,
+        ]
+
+        for storage_class in storage_contexts:
+            ae.add_requested_context(storage_class)
+
+        roles = [build_role(storage_class, scp_role=True) for storage_class in storage_contexts]
 
         ds = Dataset()
         ds.PatientID = data.get("patient", "")
@@ -354,15 +374,11 @@ class DicomNet:
         ds.QueryRetrieveLevel = data["type"].upper()
 
         assoc = ae.associate(
-            self.address, self.port, ext_neg=[role], evt_handlers=handlers, ae_title=self.aetitle
+            self.address, self.port, ext_neg=roles, evt_handlers=handlers, ae_title=self.aetitle
         )
 
-        # Use the C-GET service to send the identifier
-        total_images = data.get("n_images", 0)
-        completed = 0
-
         try:
-            if progress_callback(0, total_images):
+            if self.progress_window and self.progress_window.WasCancelled():
                 logger.info("Download cancelled by user")
                 raise RuntimeError("CANCELLED")
 
@@ -370,33 +386,38 @@ class DicomNet:
 
             for status, identifier in responses:
                 if status and status.Status in (0xFF00, 0xFF01):
-                    completed += 1
-                    if progress_callback(completed, total_images):
+                    if self.progress_window and self.progress_window.WasCancelled():
                         logger.info("Download cancelled by user")
-                        assoc.abort()
                         raise RuntimeError("CANCELLED")
                 elif status and status.Status == 0x0000:
-                    logger.info(f"C-GET completed: {completed}/{total_images} images")
+                    logger.info(f"C-GET completed")
                     break
                 else:
                     raise RuntimeError("C-GET failed with status: 0x{0:04x}".format(status.Status))
 
+            if self.progress_window and self.progress_window.WasCancelled():
+                logger.info("Download cancelled by user")
+                raise RuntimeError("CANCELLED")
+
         except Exception as e:
-            if str(e):
+            if str(e) == "CANCELLED":
+                assoc.abort()
                 self._cleanup_partial_files(dest)
                 logger.info("C-GET cancelled - partial files cleaned up")
-            logger.error(f"C-MOVE failed: {e}", exc_info=True)
+            else:
+                logger.error(f"C-GET failed: {e}", exc_info=True)
             raise
 
         finally:
+            if self.progress_window:
+                self.progress_window.Close()
             if assoc and assoc.is_established:
                 assoc.release()
-                logger.debug("C-GET association released")
+            logger.debug("C-GET resources released")
 
-    def __RunCMove(self, data, dest, progress_callback):
+    def __RunCMove(self, data, dest):
         logger.info(f"Starting C-MOVE for patient: {data.get('patient', 'unknown')}")
         logger.debug(f"Destination: {dest}")
-
         handlers = [(evt.EVT_C_STORE, self._handle_store)]
         self._current_dest = dest
 
@@ -420,11 +441,8 @@ class DicomNet:
             scp.shutdown()
             raise RuntimeError("Failed to establish association")
 
-        total_images = data.get("n_images", 0)
-        completed = 0
-
         try:
-            if progress_callback(0, total_images):
+            if self.progress_window and self.progress_window.WasCancelled():
                 logger.info("Download cancelled by user")
                 raise RuntimeError("CANCELLED")
 
@@ -434,27 +452,33 @@ class DicomNet:
 
             for status, identifier in responses:
                 if status and status.Status in (0xFF00, 0xFF01):
-                    completed += 1
-                    if progress_callback(completed, total_images):
+                    if self.progress_window and self.progress_window.WasCancelled():
                         logger.info("Download cancelled by user")
-                        assoc.abort()
                         raise RuntimeError("CANCELLED")
                 elif status and status.Status == 0x0000:
-                    logger.info(f"C-MOVE completed: {completed}/{total_images} images")
+                    logger.info(f"C-MOVE completed")
                     break
                 else:
                     raise RuntimeError("C-MOVE failed with status: 0x{0:04x}".format(status.Status))
 
+            if self.progress_window and self.progress_window.WasCancelled():
+                logger.info("Download cancelled by user")
+                raise RuntimeError("CANCELLED")
+
         except Exception as e:
             if str(e) == "CANCELLED":
+                assoc.abort()
                 self._cleanup_partial_files(dest)
                 logger.info("C-MOVE cancelled - partial files cleaned up")
-
-            logger.error(f"C-MOVE failed: {e}", exc_info=True)
+            else:
+                logger.error(f"C-MOVE failed: {e}", exc_info=True)
             raise
 
         finally:
-            assoc.release()
+            if self.progress_window:
+                self.progress_window.Close()
+            if assoc and assoc.is_established:
+                assoc.release()
             scp.shutdown()
             logger.debug("C-MOVE resources released")
 
