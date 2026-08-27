@@ -18,12 +18,14 @@ from pynetdicom import (
 )
 from pynetdicom.sop_class import (
     CTImageStorage,
-    DigitalXRayImageStorageForPresentation,
+    EnhancedCTImageStorage,
+    EnhancedMRImageStorage,
     MRImageStorage,
+    NuclearMedicineImageStorage,
     PatientRootQueryRetrieveInformationModelFind,
     PatientRootQueryRetrieveInformationModelGet,
     PatientRootQueryRetrieveInformationModelMove,
-    SecondaryCaptureImageStorage,
+    PositronEmissionTomographyImageStorage,
     UltrasoundImageStorage,
     Verification,
 )
@@ -356,10 +358,12 @@ class DicomNet:
 
         storage_contexts = [
             CTImageStorage,
+            EnhancedCTImageStorage,
             MRImageStorage,
-            SecondaryCaptureImageStorage,
-            DigitalXRayImageStorageForPresentation,
+            EnhancedMRImageStorage,
             UltrasoundImageStorage,
+            NuclearMedicineImageStorage,
+            PositronEmissionTomographyImageStorage,
         ]
 
         for storage_class in storage_contexts:
