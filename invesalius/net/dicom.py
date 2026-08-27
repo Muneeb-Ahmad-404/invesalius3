@@ -135,6 +135,10 @@ class DicomNet:
                         msg = f"C-MOVE failed: {e}. Falling back to C-GET..."
                         logger.warning(msg)
                         result = self.__RunCGet(data, dest)
+                    finally:
+                        if self.progress_window:
+                            self.progress_window.Close()
+
                 else:
                     result = self.__RunCGet(data, dest)
                 if callback:
@@ -142,6 +146,9 @@ class DicomNet:
             except Exception as e:
                 if callback:
                     wx.CallAfter(callback, dest, None, str(e))
+            finally:
+                if self.progress_window:
+                    self.progress_window.Close()
 
         self._executor.submit(_task)
 
@@ -413,8 +420,6 @@ class DicomNet:
             raise
 
         finally:
-            if self.progress_window:
-                self.progress_window.Close()
             if assoc and assoc.is_established:
                 assoc.release()
             logger.debug("C-GET resources released")
@@ -479,8 +484,6 @@ class DicomNet:
             raise
 
         finally:
-            if self.progress_window:
-                self.progress_window.Close()
             if assoc and assoc.is_established:
                 assoc.release()
             scp.shutdown()
