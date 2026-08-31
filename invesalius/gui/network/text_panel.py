@@ -26,6 +26,7 @@ class TextPanel(wx.Panel):
         self.__server_port = None
         self.__download_method = ""
         self.__store_path = None
+        self.__patients_data = None
 
         self.__session = ses.Session()
 
@@ -133,6 +134,8 @@ class TextPanel(wx.Panel):
         self.__idpatient_treeitem.clear()
         self.__idstudy_treeitem.clear()
         self.__idserie_treeitem.clear()
+
+        self.__patients_data = patients
 
         for patient in patients.keys():
             first_study = list(patients[patient].keys())[0]
@@ -272,22 +275,59 @@ class TextPanel(wx.Panel):
 
         data = self.__tree.GetItemPyData(item)
 
-        dest = pathlib.Path()
-
-        if data["type"] == "patient":
-            dest = self.__store_path / data["patient"]
-        elif data["type"] == "study":
-            dest = self.__store_path / data["patient"] / data["study"]
-        elif data["type"] == "series":
-            dest = self.__store_path / data["patient"] / data["study"] / data["series"]
-        else:
-            wx.MessageBox(_("Unknown item type"), _("Error"), wx.OK | wx.ICON_ERROR)
+        patient_id = data.get("patient")
+        if not patient_id:
+            wx.MessageBox(_("Missing patient information"), _("Error"), wx.OK | wx.ICON_ERROR)
             return
 
+        patient_data = self.__patients_data.get(patient_id)
+        if not patient_data:
+            wx.MessageBox(_("Patient data not found"), _("Error"), wx.OK | wx.ICON_ERROR)
+            return
+
+        series_list = []
+
+        if data.get("type") == "patient":
+            for study_id, study_data in patient_data.items():
+                for series_id, series_data in study_data.items():
+                    series_data["patient"] = patient_id
+                    series_data["study"] = study_id
+                    series_data["series"] = series_id
+                    series_data["type"] = "series"
+                    series_list.append((study_id, series_id, series_data))
+
+        elif data.get("type") == "study":
+            study_id = data.get("study")
+            study_data = patient_data.get(study_id, {})
+            for series_id, series_data in study_data.items():
+                series_data["patient"] = patient_id
+                series_data["study"] = study_id
+                series_data["series"] = series_id
+                series_data["type"] = "series"
+                series_list.append((study_id, series_id, series_data))
+
+        elif data.get("type") == "series":
+            study_id = data.get("study")
+            series_id = data.get("series")
+            series_data = patient_data.get(study_id, {}).get(series_id, {})
+            series_data["patient"] = patient_id
+            series_data["study"] = study_id
+            series_data["series"] = series_id
+            series_data["type"] = "series"
+            series_list.append((study_id, series_id, series_data))
+
+        if not series_list:
+            wx.MessageBox(_("No series found to download"), _("Info"), wx.OK | wx.ICON_INFORMATION)
+            return
+
+        for study_id, series_id, series_data in series_list:
+            dest = self.__store_path / patient_id / study_id / series_id
+            self._download_series(series_data, dest)
+
+    def _download_series(self, data, dest):
         n_images = data.get("n_images", 0)
         dest.mkdir(parents=True, exist_ok=True)
-        found = len([f for f in dest.iterdir() if f.suffix == ".dcm"])
-
+        found = len([f for f in dest.rglob("*.dcm") if f.is_file()])
         if found >= n_images:
             wx.MessageBox("Images already downloaded!", "Info", wx.OK)
             Publisher.sendMessage("Hide import network panel")
@@ -301,7 +341,6 @@ class TextPanel(wx.Panel):
         )
         dn.ServerAETitle(self.__server_aetitle)
         dn.SetPortCall(int(self.__server_port))
-        dn.SetStorePath(self.__store_path)
         dn.SetIPCall(self.__server_ip)
 
         try:
@@ -313,7 +352,6 @@ class TextPanel(wx.Panel):
             )
 
         except Exception as e:
-            self._destroy_progress()
             wx.MessageBox(str(e), _("Error"), wx.OK | wx.ICON_ERROR)
             return
 

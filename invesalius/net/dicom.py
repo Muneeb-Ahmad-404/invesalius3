@@ -46,7 +46,6 @@ class DicomNet:
         self.server_aetitle = ""
         self.ip_call = ""
         self.port_call = 0
-        self.store_path = ""
         self.search_word = ""
         self.search_type = "patient"
         self._executor = ThreadPoolExecutor(max_workers=os.cpu_count())
@@ -75,9 +74,6 @@ class DicomNet:
 
     def SetPortCall(self, port: int):
         self.port_call = port
-
-    def SetStorePath(self, path: str):
-        self.store_path = path
 
     def SetSearchWord(self, word: str):
         self.search_word = word
